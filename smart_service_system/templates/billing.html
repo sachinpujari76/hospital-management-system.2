@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Billing & Invoicing - Smart Service{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+    <div class="col-md-6">
+        <h3 class="fw-bold text-dark mb-1">Billing & Invoices</h3>
+        <p class="text-muted small mb-0">Generate customer bills, manage payment statuses, and print receipts.</p>
+    </div>
+    <div class="col-md-6 text-md-end mt-3 mt-md-0">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateBillModal">
+            <i class="bi bi-receipt-cutoff me-1"></i> Generate New Invoice
+        </button>
+    </div>
+</div>
+
+<!-- Bills Table -->
+<div class="card border-0 shadow-sm rounded-3">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light small">
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Date</th>
+                        <th>Customer Details</th>
+                        <th>Service Rendered</th>
+                        <th>Rate & Qty</th>
+                        <th>Total Amount</th>
+                        <th>Payment</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="small">
+                    {% for b in bills %}
+                    <tr>
+                        <td class="font-monospace fw-bold text-primary">{{ b.bill_number }}</td>
+                        <td>{{ b.bill_date }}</td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ b.customer_name }}</div>
+                            <div class="text-muted" style="font-size: 0.75rem;"><i class="bi bi-telephone"></i> {{ b.customer_phone }}</div>
+                        </td>
+                        <td class="fw-semibold text-dark">{{ b.service_name }}</td>
+                        <td class="font-monospace">
+                            ₹ {{ "%.2f"|format(b.price) }} &times; {{ b.quantity }}
+                        </td>
+                        <td class="fw-bold fs-6 text-dark font-monospace">
+                            ₹ {{ "%.2f"|format(b.total_amount) }}
+                        </td>
+                        <td>
+                            {% if b.payment_status == 'Paid' %}
+                                <a href="{{ url_for('update_bill_status', id=b.id, status='Unpaid') }}" class="badge bg-success text-decoration-none" title="Click to mark Unpaid">
+                                    <i class="bi bi-check2 me-1"></i> Paid
+                                </a>
+                            {% else %}
+                                <a href="{{ url_for('update_bill_status', id=b.id, status='Paid') }}" class="badge bg-warning text-dark text-decoration-none" title="Click to mark Paid">
+                                    <i class="bi bi-hourglass-split me-1"></i> Unpaid
+                                </a>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-dark me-1" data-bs-toggle="modal" data-bs-target="#viewInvoiceModal{{ b.id }}">
+                                <i class="bi bi-printer"></i> Print
+                            </button>
+                            {% if session.get('role') == 'admin' %}
+                            <a href="{{ url_for('delete_bill', id=b.id) }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete invoice {{ b.bill_number }}?');">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    <!-- Printable Invoice Modal -->
+                    <div class="modal fade" id="viewInvoiceModal{{ b.id }}" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header border-0 pb-0">
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body p-4 p-md-5" id="printableInvoice{{ b.id }}">
+                                    <!-- Invoice Header -->
+                                    <div class="d-flex justify-content-between align-items-start border-bottom pb-4 mb-4">
+                                        <div>
+                                            <h3 class="fw-bold text-primary mb-1">SmartService</h3>
+                                            <p class="text-muted small mb-0">Professional Tech & Appliance Care</p>
+                                            <p class="text-muted small mb-0">Email: support@smartservice.com &middot; Web: smartservice.local</p>
+                                        </div>
+                                        <div class="text-end">
+                                            <h4 class="fw-bold text-dark mb-1">TAX INVOICE</h4>
+                                            <p class="font-monospace text-muted small mb-1">Invoice: <strong>{{ b.bill_number }}</strong></p>
+                                            <p class="text-muted small mb-0">Date: {{ b.bill_date }}</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Billed To -->
+                                    <div class="row mb-4">
+                                        <div class="col-6">
+                                            <h6 class="text-uppercase text-muted fw-bold small">Billed To:</h6>
+                                            <h5 class="fw-bold text-dark mb-1">{{ b.customer_name }}</h5>
+                                            <p class="text-muted small mb-0">Phone: {{ b.customer_phone }}</p>
+                                            <p class="text-muted small mb-0">Email: {{ b.customer_email or 'N/A' }}</p>
+                                        </div>
+                                        <div class="col-6 text-end">
+                                            <h6 class="text-uppercase text-muted fw-bold small">Payment Status:</h6>
+                                            <span class="badge {% if b.payment_status == 'Paid' %}bg-success{% else %}bg-warning text-dark{% endif %} fs-6">
+                                                {{ b.payment_status }}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Invoice Line Items -->
+                                    <div class="table-responsive mb-4">
+                                        <table class="table table-bordered align-middle">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Description</th>
+                                                    <th class="text-center" style="width: 100px;">Qty</th>
+                                                    <th class="text-end" style="width: 150px;">Unit Rate</th>
+                                                    <th class="text-end" style="width: 150px;">Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td>
+                                                        <div class="fw-bold">{{ b.service_name }}</div>
+                                                        <small class="text-muted">Standard certified technician service</small>
+                                                    </td>
+                                                    <td class="text-center">{{ b.quantity }}</td>
+                                                    <td class="text-end font-monospace">₹ {{ "%.2f"|format(b.price) }}</td>
+                                                    <td class="text-end font-monospace fw-bold">₹ {{ "%.2f"|format(b.total_amount) }}</td>
+                                                </tr>
+                                            </tbody>
+                                            <tfoot>
+                                                <tr>
+                                                    <th colspan="3" class="text-end">Total Amount:</th>
+                                                    <th class="text-end font-monospace fs-5 text-primary">₹ {{ "%.2f"|format(b.total_amount) }}</th>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+
+                                    <div class="border-top pt-3 text-center text-muted small">
+                                        Thank you for choosing SmartService! For support queries, contact us at 1800-SMART-SERV.
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="printInvoice('printableInvoice{{ b.id }}')">
+                                        <i class="bi bi-printer me-1"></i> Print / PDF
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-receipt fs-2 d-block mb-2 text-secondary"></i>
+                            No bills found. Click <strong>Generate New Invoice</strong> to create a bill.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Bill Modal -->
+<div class="modal fade" id="generateBillModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('create_bill') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Generate Service Invoice</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Select Customer <span class="text-danger">*</span></label>
+                        <select name="customer_id" class="form-select" required>
+                            <option value="">-- Choose Customer --</option>
+                            {% for c in customers %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Select Service Rendered <span class="text-danger">*</span></label>
+                        <select name="service_id" id="billServiceSelect" class="form-select" onchange="calculateBillTotal()" required>
+                            <option value="" data-price="0">-- Choose Service --</option>
+                            {% for s in services %}
+                            <option value="{{ s.id }}" data-price="{{ s.price }}">{{ s.name }} (₹ {{ s.price }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Quantity</label>
+                            <input type="number" name="quantity" id="billQtyInput" min="1" value="1" class="form-control" onchange="calculateBillTotal()" onkeyup="calculateBillTotal()" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Payment Status</label>
+                            <select name="payment_status" class="form-select">
+                                <option value="Paid">Paid</option>
+                                <option value="Unpaid">Unpaid</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Instant Total Preview -->
+                    <div class="bg-light p-3 rounded border text-center">
+                        <span class="text-muted small d-block">Estimated Invoice Total</span>
+                        <h3 class="fw-bold text-primary font-monospace mb-0" id="previewBillTotal">₹ 0.00</h3>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Create & Save Invoice</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function calculateBillTotal() {
+    const serviceSelect = document.getElementById('billServiceSelect');
+    const selectedOption = serviceSelect.options[serviceSelect.selectedIndex];
+    const price = parseFloat(selectedOption.getAttribute('data-price') || 0);
+    const qty = parseInt(document.getElementById('billQtyInput').value || 1);
+    const total = (price * qty).toFixed(2);
+    document.getElementById('previewBillTotal').innerText = '₹ ' + total;
+}
+
+function printInvoice(divId) {
+    const printContents = document.getElementById(divId).innerHTML;
+    const originalContents = document.body.innerHTML;
+    document.body.innerHTML = printContents;
+    window.print();
+    document.body.innerHTML = originalContents;
+    window.location.reload();
+}
+</script>
+{% endblock %}
